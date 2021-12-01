@@ -34,10 +34,67 @@ struct Node
 	int no_of_edges;
 };
 
+typedef struct result{
+	float frag;
+	size_t large_blank;
+	size_t sum;
+}result_t;
+
 #include "kernel.cu"
 #include "kernel2.cu"
 
 void BFSGraph(int argc, char** argv);
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Calculate Fragmentation
+////////////////////////////////////////////////////////////////////////////////
+result_t calculate_array_fragmentation(int* array, size_t size) {
+	size_t large_blank = 0, blank = 0, sum = 0;
+	result_t res;
+
+	for (int i = 0; i < size; i++) {
+		if (array[i] == 0) {
+			sum += 1;
+			blank +=1;
+		} else {
+			if(blank > large_blank) {
+				large_blank = blank;
+				blank = 0;
+			} else {
+				blank = 0;
+			}
+		}
+	}
+	
+	// the blank is the last part of the array
+	if(blank > large_blank) {
+		large_blank = blank;
+	} 
+
+	res.large_blank = large_blank;
+	res.sum = sum;
+
+	// no blank chunk
+	if (sum == 0) {
+		res.frag = 0.0;
+		return res;
+	}
+
+	// only one blank chunk
+	if (large_blank == sum) {
+		res.frag = 0.0;
+		return res;
+	}
+
+	res.frag = 1 - (float) large_blank / (float) sum;
+
+	return res;
+	
+}
+
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // Main Program
@@ -133,29 +190,75 @@ void BFSGraph( int argc, char** argv)
 
 	printf("Read File\n");
 
+	
+	printf("**************************************************\n");
+	printf("********************  BEGIN   ********************\n");
+	printf("**************************************************\n");
 	//Copy the Node list to device memory
 	Node* d_graph_nodes;
 	cudaMalloc( (void**) &d_graph_nodes, sizeof(Node)*no_of_nodes) ;
+	printf("Array: d_graph_nodes, size: %luB\n", sizeof(Node)*no_of_nodes);
 	cudaMemcpy( d_graph_nodes, h_graph_nodes, sizeof(Node)*no_of_nodes, cudaMemcpyHostToDevice) ;
+
+	// ############################################################
+	int * d_graph_nodes_t;
+	int * h_graph_nodes_t = (int*) malloc(sizeof(int)*no_of_nodes);
+	cudaMalloc( (void**) &d_graph_nodes_t, sizeof(int)*no_of_nodes) ;
+	cudaMemset(d_graph_nodes_t, 0, sizeof(int)*no_of_nodes);
+	// ############################################################
+
 
 	//Copy the Edge List to device Memory
 	int* d_graph_edges;
 	cudaMalloc( (void**) &d_graph_edges, sizeof(int)*edge_list_size) ;
+	printf("Array: d_graph_edges, size: %luB\n", sizeof(int)*edge_list_size);
 	cudaMemcpy( d_graph_edges, h_graph_edges, sizeof(int)*edge_list_size, cudaMemcpyHostToDevice) ;
+
+	// ############################################################
+	int * d_graph_edges_t;
+	int * h_graph_edges_t = (int*) malloc(sizeof(int)*edge_list_size);
+	cudaMalloc( (void**) &d_graph_edges_t, sizeof(int)*edge_list_size) ;
+	cudaMemset(d_graph_edges_t, 0, sizeof(int)*edge_list_size);
+	// ############################################################
 
 	//Copy the Mask to device memory
 	bool* d_graph_mask;
 	cudaMalloc( (void**) &d_graph_mask, sizeof(bool)*no_of_nodes) ;
+	printf("Array: d_graph_mask, size: %luB\n", sizeof(bool)*no_of_nodes);
 	cudaMemcpy( d_graph_mask, h_graph_mask, sizeof(bool)*no_of_nodes, cudaMemcpyHostToDevice) ;
+
+	// ############################################################
+	int * d_graph_mask_t;
+	int * h_graph_mask_t = (int*) malloc(sizeof(int)*no_of_nodes);
+	cudaMalloc( (void**) &d_graph_mask_t, sizeof(int)*no_of_nodes) ;
+	cudaMemset(d_graph_mask_t, 0, sizeof(int)*no_of_nodes);
+	// ############################################################
 
 	bool* d_updating_graph_mask;
 	cudaMalloc( (void**) &d_updating_graph_mask, sizeof(bool)*no_of_nodes) ;
+	printf("Array: d_updating_graph_mask, size: %luB\n", sizeof(bool)*no_of_nodes);
 	cudaMemcpy( d_updating_graph_mask, h_updating_graph_mask, sizeof(bool)*no_of_nodes, cudaMemcpyHostToDevice) ;
+
+	// ############################################################
+	int * d_updating_graph_mask_t;
+	int * h_updating_graph_mask_t = (int*) malloc(sizeof(int)*no_of_nodes);
+	cudaMalloc( (void**) &d_updating_graph_mask_t, sizeof(int)*no_of_nodes) ;
+	cudaMemset(d_updating_graph_mask_t, 0, sizeof(int)*no_of_nodes);
+	// ############################################################
+
 
 	//Copy the Visited nodes array to device memory
 	bool* d_graph_visited;
 	cudaMalloc( (void**) &d_graph_visited, sizeof(bool)*no_of_nodes) ;
+	printf("Array: d_graph_visited, size: %luB\n", sizeof(bool)*no_of_nodes);
 	cudaMemcpy( d_graph_visited, h_graph_visited, sizeof(bool)*no_of_nodes, cudaMemcpyHostToDevice) ;
+
+	// ############################################################
+	int * d_graph_visited_t;
+	int * h_graph_visited_t = (int*) malloc(sizeof(int)*no_of_nodes);
+	cudaMalloc( (void**) &d_graph_visited_t, sizeof(int)*no_of_nodes) ;
+	cudaMemset(d_graph_visited_t, 0, sizeof(int)*no_of_nodes);
+	// ############################################################
 
 	// allocate mem for the result on host side
 	int* h_cost = (int*) malloc( sizeof(int)*no_of_nodes);
@@ -166,11 +269,32 @@ void BFSGraph( int argc, char** argv)
 	// allocate device memory for result
 	int* d_cost;
 	cudaMalloc( (void**) &d_cost, sizeof(int)*no_of_nodes);
+	printf("Array: d_cost, size: %luB\n", sizeof(int)*no_of_nodes);
 	cudaMemcpy( d_cost, h_cost, sizeof(int)*no_of_nodes, cudaMemcpyHostToDevice) ;
+
+	// ############################################################
+	int * d_cost_t;
+	int * h_cost_t = (int*) malloc(sizeof(int)*no_of_nodes);
+	cudaMalloc( (void**) &d_cost_t, sizeof(int)*no_of_nodes) ;
+	cudaMemset(d_cost_t, 0, sizeof(int)*no_of_nodes);
+	// ############################################################
 
 	//make a bool to check if the execution is over
 	bool *d_over;
 	cudaMalloc( (void**) &d_over, sizeof(bool));
+	printf("Array: d_over, size: %luB\n", sizeof(bool));
+	
+	// ############################################################
+	int * d_over_t;
+	int * h_over_t = (int*) malloc(sizeof(int));
+	cudaMalloc( (void**) &d_over_t, sizeof(int)) ;
+	cudaMemset(d_over_t, 0, sizeof(int));
+	// ############################################################
+
+
+	printf("**************************************************\n");
+	printf("********************  END   ********************\n");
+	printf("**************************************************\n");
 
 	printf("Copied Everything to GPU memory\n");
 
@@ -187,11 +311,14 @@ void BFSGraph( int argc, char** argv)
 		//if no thread changes this value then the loop stops
 		stop=false;
 		cudaMemcpy( d_over, &stop, sizeof(bool), cudaMemcpyHostToDevice) ;
-		Kernel<<< grid, threads, 0 >>>( d_graph_nodes, d_graph_edges, d_graph_mask, d_updating_graph_mask, d_graph_visited, d_cost, no_of_nodes);
+		Kernel<<< grid, threads, 0 >>>( d_graph_nodes, d_graph_nodes_t, d_graph_edges, d_graph_edges_t, 
+		d_graph_mask, d_graph_mask_t, d_updating_graph_mask, d_updating_graph_mask_t, d_graph_visited, d_graph_visited_t, 
+		d_cost, d_cost_t, no_of_nodes);
 		// check if kernel execution generated and error
 		
 
-		Kernel2<<< grid, threads, 0 >>>( d_graph_mask, d_updating_graph_mask, d_graph_visited, d_over, no_of_nodes);
+		Kernel2<<< grid, threads, 0 >>>( d_graph_mask, d_graph_mask_t, d_updating_graph_mask, d_updating_graph_mask_t, 
+		d_graph_visited, d_graph_visited_t, d_over, d_over_t, no_of_nodes);
 		// check if kernel execution generated and error
 		
 
@@ -213,6 +340,48 @@ void BFSGraph( int argc, char** argv)
 	fclose(fpo);
 	printf("Result stored in result.txt\n");
 
+	/************************************************************
+	 * ******************* calculate fragmentation *************
+	 ***********************************************************/
+	cudaMemcpy(h_graph_nodes_t, d_graph_nodes_t, sizeof(int)*no_of_nodes, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_graph_edges_t, d_graph_edges_t, sizeof(int)*edge_list_size, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_graph_mask_t, d_graph_mask_t, sizeof(int)*no_of_nodes, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_updating_graph_mask_t, d_updating_graph_mask_t, sizeof(int)*no_of_nodes, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_graph_visited_t, d_graph_visited_t, sizeof(int)*no_of_nodes, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_cost_t, d_cost_t, sizeof(int)*no_of_nodes, cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_over_t, d_over_t, sizeof(int), cudaMemcpyDeviceToHost);
+
+	printf("###############################################################################################\n");
+	result_t result;
+	result = calculate_array_fragmentation(h_graph_nodes_t, no_of_nodes);
+	printf("d_graph_nodes;	\t size: %luB,\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+	sizeof(Node)*no_of_nodes, result.large_blank*sizeof(Node), result.sum*sizeof(Node), result.frag);
+	
+	result = calculate_array_fragmentation(h_graph_edges_t, edge_list_size);
+	printf("d_graph_edges;	\t size: %luB,\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+	sizeof(int)*edge_list_size, result.large_blank*sizeof(int), result.sum*sizeof(int), result.frag);
+	
+	result = calculate_array_fragmentation(h_graph_mask_t, no_of_nodes);
+	printf("d_graph_mask;	\t size: %luB,\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+	sizeof(bool)*no_of_nodes, result.large_blank*sizeof(bool), result.sum*sizeof(bool), result.frag);
+	
+	result = calculate_array_fragmentation(h_updating_graph_mask_t, no_of_nodes);
+	printf("d_updating_graph_mask;\t size: %luB,\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+	sizeof(bool)*no_of_nodes, result.large_blank*sizeof(bool), result.sum*sizeof(bool), result.frag);
+	
+	result = calculate_array_fragmentation(h_graph_visited_t, no_of_nodes);
+	printf("d_graph_visited;\t size: %luB,\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+	sizeof(bool)*no_of_nodes, result.large_blank*sizeof(bool), result.sum*sizeof(bool), result.frag);
+	
+	result = calculate_array_fragmentation(h_cost_t, no_of_nodes);
+	printf("d_cost;		\t size: %luB,\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+	sizeof(int)*no_of_nodes, result.large_blank*sizeof(int), result.sum*sizeof(int), result.frag);
+	
+	result = calculate_array_fragmentation(h_over_t, 1);
+	printf("d_over;		\t size: %luB,	\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+	sizeof(bool), result.large_blank*sizeof(bool), result.sum*sizeof(bool), result.frag);
+	printf("###############################################################################################\n");
+
 
 	// cleanup memory
 	free( h_graph_nodes);
@@ -227,4 +396,18 @@ void BFSGraph( int argc, char** argv)
 	cudaFree(d_updating_graph_mask);
 	cudaFree(d_graph_visited);
 	cudaFree(d_cost);
+
+	free(h_graph_nodes_t);
+	free(h_graph_edges_t);
+	free(h_graph_mask_t);
+	free(h_updating_graph_mask_t);
+	free(h_graph_visited_t);
+	free(h_cost_t);
+	cudaFree(d_graph_nodes_t);
+	cudaFree(d_graph_edges_t);
+	cudaFree(d_graph_mask_t);
+	cudaFree(d_updating_graph_mask_t);
+	cudaFree(d_graph_visited_t);
+	cudaFree(d_cost_t);
+	
 }
