@@ -155,8 +155,8 @@ void bpnn_train_cuda(BPNN *net, float *eo, float *eh)
   // ############################################################
 	int * input_cuda_t;
 	int * h_input_cuda_t = (int*) malloc((in + 1) * sizeof(int));
-	cudaMalloc( (void**) &input_cuda_t, (in + 1) * sizeof(float)) ;
-	cudaMemset(input_cuda_t, 0, (in + 1) * sizeof(float));
+	cudaMalloc( (void**) &input_cuda_t, (in + 1) * sizeof(int)) ;
+	cudaMemset(input_cuda_t, 0, (in + 1) * sizeof(int));
 	// ############################################################
 
   
@@ -165,8 +165,8 @@ void bpnn_train_cuda(BPNN *net, float *eo, float *eh)
   // ############################################################
 	int * output_hidden_cuda_t;
 	int * h_output_hidden_cuda_t = (int*) malloc((hid + 1) * sizeof(int));
-	cudaMalloc( (void**) &output_hidden_cuda_t, (hid + 1) * sizeof(float)) ;
-	cudaMemset(output_hidden_cuda_t, 0, (hid + 1) * sizeof(float));
+	cudaMalloc( (void**) &output_hidden_cuda_t, (hid + 1) * sizeof(int)) ;
+	cudaMemset(output_hidden_cuda_t, 0, (hid + 1) * sizeof(int));
 	// ############################################################
 
 
@@ -175,8 +175,8 @@ void bpnn_train_cuda(BPNN *net, float *eo, float *eh)
   // ############################################################
 	int * input_hidden_cuda_t;
 	int * h_input_hidden_cuda_t = (int*) malloc((in + 1) * (hid + 1) * sizeof(int));
-	cudaMalloc( (void**) &input_hidden_cuda_t, (in + 1) * (hid + 1) * sizeof(float)) ;
-	cudaMemset(input_hidden_cuda_t, 0, (in + 1) * (hid + 1) * sizeof(float));
+	cudaMalloc( (void**) &input_hidden_cuda_t, (in + 1) * (hid + 1) * sizeof(int)) ;
+	cudaMemset(input_hidden_cuda_t, 0, (in + 1) * (hid + 1) * sizeof(int));
 	// ############################################################
 
   cudaMalloc((void**) &hidden_partial_sum, num_blocks * WIDTH * sizeof(float));
@@ -184,8 +184,8 @@ void bpnn_train_cuda(BPNN *net, float *eo, float *eh)
   // ############################################################
 	int * hidden_partial_sum_t;
 	int * h_hidden_partial_sum_t = (int*) malloc(num_blocks * WIDTH * sizeof(int));
-	cudaMalloc( (void**) &hidden_partial_sum_t, num_blocks * WIDTH * sizeof(float)) ;
-	cudaMemset(hidden_partial_sum_t, 0, num_blocks * WIDTH * sizeof(float));
+	cudaMalloc( (void**) &hidden_partial_sum_t, num_blocks * WIDTH * sizeof(int)) ;
+	cudaMemset(hidden_partial_sum_t, 0, num_blocks * WIDTH * sizeof(int));
 	// ############################################################
   
   
@@ -255,8 +255,8 @@ void bpnn_train_cuda(BPNN *net, float *eo, float *eh)
   // ############################################################
 	int * hidden_delta_cuda_t;
 	int * h_hidden_delta_cuda_t = (int*) malloc((hid + 1) * sizeof(int));
-	cudaMalloc( (void**) &hidden_delta_cuda_t, (hid + 1) * sizeof(float)) ;
-	cudaMemset(hidden_delta_cuda_t, 0, (hid + 1) * sizeof(float));
+	cudaMalloc( (void**) &hidden_delta_cuda_t, (hid + 1) * sizeof(int)) ;
+	cudaMemset(hidden_delta_cuda_t, 0, (hid + 1) * sizeof(int));
 	// ############################################################
 
 
@@ -265,8 +265,8 @@ void bpnn_train_cuda(BPNN *net, float *eo, float *eh)
   // ############################################################
 	int * input_prev_weights_cuda_t;
 	int * h_input_prev_weights_cuda_t = (int*) malloc((in + 1) * (hid + 1) * sizeof(int));
-	cudaMalloc( (void**) &input_prev_weights_cuda_t, (in + 1) * (hid + 1) * sizeof(float)) ;
-	cudaMemset(input_prev_weights_cuda_t, 0, (in + 1) * (hid + 1) * sizeof(float));
+	cudaMalloc( (void**) &input_prev_weights_cuda_t, (in + 1) * (hid + 1) * sizeof(int)) ;
+	cudaMemset(input_prev_weights_cuda_t, 0, (in + 1) * (hid + 1) * sizeof(int));
 	// ############################################################
 
 
@@ -353,8 +353,6 @@ void bpnn_train_cuda(BPNN *net, float *eo, float *eh)
   free(input_weights_prev_one_dim);
 
 #endif   
-  
-  
-  
+
 
 }
