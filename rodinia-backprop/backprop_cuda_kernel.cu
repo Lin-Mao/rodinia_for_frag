@@ -10,10 +10,10 @@
 
 
 __global__ void
-bpnn_layerforward_CUDA(float *input_cuda,
-	                   float *output_hidden_cuda,
-					   float *input_hidden_cuda,
-					   float *hidden_partial_sum,
+bpnn_layerforward_CUDA(float *input_cuda, int* input_cuda_t,
+	                   float *output_hidden_cuda, int* output_hidden_cuda_t,
+					   float *input_hidden_cuda, int* input_hidden_cuda_t,
+					   float *hidden_partial_sum, int* hidden_partial_sum_t,
 					   int in,
 					   int hid) 
 {
@@ -31,10 +31,12 @@ bpnn_layerforward_CUDA(float *input_cuda,
 
    if ( tx == 0 )
    input_node[ty] = input_cuda[index_in] ;
+   input_cuda_t[index_in] = 1;
    
    __syncthreads();
 
    weight_matrix[ty][tx] = input_hidden_cuda[index];
+   input_hidden_cuda_t[index] = 1;
 
    __syncthreads();
    
@@ -56,6 +58,7 @@ bpnn_layerforward_CUDA(float *input_cuda,
    //__syncthreads();
 
    input_hidden_cuda[index] = weight_matrix[ty][tx];
+   input_hidden_cuda_t[index] = 1;
    
 /*
    for ( unsigned int i = 2 ; i <= HEIGHT ; i *= 2){
@@ -73,17 +76,18 @@ bpnn_layerforward_CUDA(float *input_cuda,
 
    if ( tx == 0 ) {
 	   hidden_partial_sum[by * hid + ty] = weight_matrix[tx][ty];
+      hidden_partial_sum_t[by * hid + ty] = 1;
    }
 
 }
 
 
-__global__ void bpnn_adjust_weights_cuda(float * delta,   
+__global__ void bpnn_adjust_weights_cuda(float * delta, int* delta_t,  
 										 int hid,         
-										 float * ly,      
+										 float * ly, int* ly_t,     
 										 int in,          
-										 float * w,       
-										 float * oldw)  									
+										 float * w, int* w_t,      
+										 float * oldw, int* oldw_t)  									
 {
   
   
@@ -99,13 +103,22 @@ __global__ void bpnn_adjust_weights_cuda(float * delta,
    //momentum = 0.3;
 
    w[index] += ((ETA * delta[index_x] * ly[index_y]) + (MOMENTUM * oldw[index]));
+   w_t[index] = 1;
+
    oldw[index] = ((ETA * delta[index_x] * ly[index_y]) + (MOMENTUM * oldw[index]));
+   delta_t[index_x] = 1;
+   ly_t[index_y] = 1;
+   oldw_t[index] = 1;
 
    __syncthreads();
 
    if (ty == 0 && by ==0){
      w[index_x] += ((ETA * delta[index_x]) + (MOMENTUM * oldw[index_x]));
+     w_t[index_x] = 1;
+
      oldw[index_x] = ((ETA * delta[index_x]) + (MOMENTUM * oldw[index_x]));
+     delta_t[index_x] = 1;
+     oldw_t[index_x] = 1;
    }
 }
 #endif 
