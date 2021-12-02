@@ -38,6 +38,58 @@ void run(int argc, char** argv);
 #define pin_stats_pause(cycles)   stopCycle(cycles)
 #define pin_stats_dump(cycles)    printf("timer: %Lu\n", cycles)
 
+typedef struct result{
+	float frag;
+	size_t large_blank;
+	size_t sum;
+}result_t;
+
+////////////////////////////////////////////////////////////////////////////////
+// Calculate Fragmentation
+////////////////////////////////////////////////////////////////////////////////
+result_t calculate_array_fragmentation(int* array, size_t size) {
+	size_t large_blank = 0, blank = 0, sum = 0;
+	result_t res;
+
+	for (int i = 0; i < size; i++) {
+		if (array[i] == 0) {
+			sum += 1;
+			blank +=1;
+		} else {
+			if(blank > large_blank) {
+				large_blank = blank;
+				blank = 0;
+			} else {
+				blank = 0;
+			}
+		}
+	}
+	
+	// the blank is the last part of the array
+	if(blank > large_blank) {
+		large_blank = blank;
+	} 
+
+	res.large_blank = large_blank;
+	res.sum = sum;
+
+	// no blank chunk
+	if (sum == 0) {
+		res.frag = 0.0;
+		return res;
+	}
+
+	// only one blank chunk
+	if (large_blank == sum) {
+		res.frag = 0.0;
+		return res;
+	}
+
+	res.frag = 1 - (float) large_blank / (float) sum;
+
+	return res;
+	
+}
 
 
 void 
@@ -102,9 +154,9 @@ void readinput(float *vect, int grid_rows, int grid_cols, char *file){
 #define MIN(a, b) ((a)<=(b) ? (a) : (b))
 
 __global__ void calculate_temp(int iteration,  //number of iteration
-                               float *power,   //power input
-                               float *temp_src,    //temperature input/output
-                               float *temp_dst,    //temperature input/output
+                               float *power, int* power_t,   //power input
+                               float *temp_src, int* temp_src_t,    //temperature input/output
+                               float *temp_dst, int* temp_dst_t,   //temperature input/output
                                int grid_cols,  //Col of grid
                                int grid_rows,  //Row of grid
 							   int border_cols,  // border offset 
@@ -162,7 +214,9 @@ __global__ void calculate_temp(int iteration,  //number of iteration
        
 	if(IN_RANGE(loadYidx, 0, grid_rows-1) && IN_RANGE(loadXidx, 0, grid_cols-1)){
             temp_on_cuda[ty][tx] = temp_src[index];  // Load the temperature data from global memory to shared memory
+            temp_src_t[index] = 1;
             power_on_cuda[ty][tx] = power[index];// Load the power data from global memory to shared memory
+            power_t[index] = 1;
 	}
 	__syncthreads();
 
@@ -210,7 +264,8 @@ __global__ void calculate_temp(int iteration,  //number of iteration
       // after the last iteration, only threads coordinated within the 
       // small block perform the calculation and switch on ``computed''
       if (computed){
-          temp_dst[index]= temp_t[ty][tx];		
+          temp_dst[index]= temp_t[ty][tx];	
+          temp_dst_t[index] = 1;	
       }
 }
 
@@ -218,7 +273,7 @@ __global__ void calculate_temp(int iteration,  //number of iteration
    compute N time steps
 */
 
-int compute_tran_temp(float *MatrixPower,float *MatrixTemp[2], int col, int row, \
+int compute_tran_temp(float *MatrixPower, int *MatrixPower_t, float *MatrixTemp[2], int *MatrixTemp_t[2], int col, int row, \
 		int total_iterations, int num_iterations, int blockCols, int blockRows, int borderCols, int borderRows) 
 {
         dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
@@ -244,7 +299,8 @@ int compute_tran_temp(float *MatrixPower,float *MatrixTemp[2], int col, int row,
             int temp = src;
             src = dst;
             dst = temp;
-            calculate_temp<<<dimGrid, dimBlock>>>(MIN(num_iterations, total_iterations-t), MatrixPower,MatrixTemp[src],MatrixTemp[dst],\
+            calculate_temp<<<dimGrid, dimBlock>>>(MIN(num_iterations, total_iterations-t), MatrixPower, \
+            MatrixPower_t, MatrixTemp[src], MatrixTemp_t[src], MatrixTemp[dst], MatrixTemp_t[dst],\
 		col,row,borderCols, borderRows, Cap,Rx,Ry,Rz,step,time_elapsed);
 	}
         return dst;
@@ -321,16 +377,66 @@ void run(int argc, char** argv)
     cudaMalloc((void**)&MatrixTemp[0], sizeof(float)*size);
     cudaMalloc((void**)&MatrixTemp[1], sizeof(float)*size);
     cudaMemcpy(MatrixTemp[0], FilesavingTemp, sizeof(float)*size, cudaMemcpyHostToDevice);
+    
+    // ############################################################
+    int *MatrixTemp_t[2];
+    int *h_MatrixTemp_t[2];
+
+    h_MatrixTemp_t[0] = (int*) malloc(sizeof(int)*size);
+    cudaMalloc( (void**) &MatrixTemp_t[0], sizeof(int)*size) ;
+    cudaMemset(MatrixTemp_t[0], 0, sizeof(int)*size);
+
+    h_MatrixTemp_t[1] = (int*) malloc(sizeof(int)*size);
+    cudaMalloc( (void**) &MatrixTemp_t[1], sizeof(int)*size) ;
+    cudaMemset(MatrixTemp_t[1], 0, sizeof(int)*size);
+    // ############################################################
+
 
     cudaMalloc((void**)&MatrixPower, sizeof(float)*size);
     cudaMemcpy(MatrixPower, FilesavingPower, sizeof(float)*size, cudaMemcpyHostToDevice);
+    
+    // ############################################################
+	int * MatrixPower_t;
+	int * h_MatrixPower_t = (int*) malloc(sizeof(int)*size);
+	cudaMalloc( (void**) &MatrixPower_t, sizeof(int)*size) ;
+	cudaMemset(MatrixPower_t, 0, sizeof(int)*size);
+	// ############################################################
+
     printf("Start computing the transient temperature\n");
-    int ret = compute_tran_temp(MatrixPower,MatrixTemp,grid_cols,grid_rows, \
-	 total_iterations,pyramid_height, blockCols, blockRows, borderCols, borderRows);
+    int ret = compute_tran_temp(MatrixPower, MatrixPower_t, MatrixTemp, MatrixTemp_t, grid_cols, grid_rows, \
+	total_iterations,pyramid_height, blockCols, blockRows, borderCols, borderRows);
 	printf("Ending simulation\n");
     cudaMemcpy(MatrixOut, MatrixTemp[ret], sizeof(float)*size, cudaMemcpyDeviceToHost);
 
     writeoutput(MatrixOut,grid_rows, grid_cols, ofile);
+
+    cudaMemcpy(h_MatrixTemp_t[0], MatrixTemp_t[0], sizeof(int)*size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_MatrixTemp_t[1], MatrixTemp_t[1], sizeof(int)*size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(h_MatrixPower_t, MatrixPower_t, sizeof(int)*size, cudaMemcpyDeviceToHost);
+
+
+    printf("###############################################################################################\n");
+    result_t result;
+    result = calculate_array_fragmentation(h_MatrixTemp_t[0], size);
+    printf("MatrixTemp[0];\t size: %luB,\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+    size * sizeof(float), result.large_blank*sizeof(float), result.sum*sizeof(float), result.frag);
+
+    result = calculate_array_fragmentation(h_MatrixTemp_t[1], size);
+    printf("MatrixTemp[1];\t size: %luB,\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+    size * sizeof(float), result.large_blank*sizeof(float), result.sum*sizeof(float), result.frag);
+
+    result = calculate_array_fragmentation(h_MatrixPower_t, size);
+    printf("MatrixPower;\t size: %luB,\t large: %luB,\t sum: %luB,\t frag: %f\n", 
+    size * sizeof(float), result.large_blank*sizeof(float), result.sum*sizeof(float), result.frag);
+
+    printf("###############################################################################################\n");
+
+
+    cudaFree(MatrixPower_t);
+    cudaFree(MatrixTemp_t[0]);
+    cudaFree(MatrixTemp_t[1]);
+    free(h_MatrixPower_t);
+
 
     cudaFree(MatrixPower);
     cudaFree(MatrixTemp[0]);
